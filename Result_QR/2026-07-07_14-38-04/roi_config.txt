@@ -1,0 +1,62 @@
+# Cap nhat: 2026-07-07 14:38:04 | Tong so ROI: 6
+----------------------------
+ID: 1
+SN: O 10 - QR Nguoc
+STATUS: OK
+ROW: 2
+COL: 1
+X: 57
+Y: 56
+WIDTH: 189
+HEIGHT: 188
+----------------------------
+ID: 2
+SN: O 10 - QR Xuoi
+STATUS: OK
+ROW: 2
+COL: 1
+X: 258
+Y: 58
+WIDTH: 184
+HEIGHT: 184
+----------------------------
+ID: 3
+SN: O 7 - QR Nguoc
+STATUS: OK
+ROW: 1
+COL: 1
+X: 524
+Y: 60
+WIDTH: 173
+HEIGHT: 176
+----------------------------
+ID: 4
+SN: O 7 - QR Xuoi
+STATUS: OK
+ROW: 2
+COL: 2
+X: 723
+Y: 62
+WIDTH: 178
+HEIGHT: 175
+----------------------------
+ID: 5
+SN: O 11 - QR Nguoc
+STATUS: OK
+ROW: 3
+COL: 1
+X: 61
+Y: 319
+WIDTH: 179
+HEIGHT: 182
+----------------------------
+ID: 6
+SN: O 11 - QR Xuoi
+STATUS: OK
+ROW: 3
+COL: 1
+X: 264
+Y: 322
+WIDTH: 174
+HEIGHT: 177
+----------------------------
