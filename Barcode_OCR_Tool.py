@@ -11,6 +11,8 @@ from BaslerControl import CamControl
 from barcode_reader import Process_barcodes
 from ocr_process import process_ocr
 
+from roi_manager import ROIManager
+
 class BarcodeOCRTool:
     def __init__(self, root):
         self.root = root
