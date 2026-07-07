@@ -264,7 +264,7 @@ class ROIManager:
         return None
     
     # Thêm hoặc sửa ROI (dùng cho ROI Editor)
-    def upsert_manual(self, roi_id, x, y, widht, height, row=None, col=None):
+    def upsert_manual(self, roi_id, x, y, width, height, row=None, col=None):
         r = self.get(roi_id)
         if r is None:
             r = {"id": roi_id, "row": row or 0, "col": col or 0,

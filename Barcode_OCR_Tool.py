@@ -12,6 +12,8 @@ from barcode_reader import Process_barcodes
 from ocr_process import process_ocr
 
 from roi_manager import ROIManager
+from roi_editor import ROIEditor
+from export_manager import export_all
 
 class BarcodeOCRTool:
     def __init__(self, root):
