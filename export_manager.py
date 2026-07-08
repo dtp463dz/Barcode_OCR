@@ -1,4 +1,5 @@
 import os
+import shutil
 from datetime import datetime
 import cv2
 
@@ -65,10 +66,13 @@ def _write_results_txt(path, results, ts):
 # sinh ra toàn bộ file output
 def export_all(image, results, roi_manager, out_root = "Result_QR"):
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    out_dir = os.path.join(out_root, ts)
+    out_dir = out_root
     rows_dir = os.path.join(out_dir, "rows")
     cols_dir = os.path.join(out_dir, "cols")
     ind_dir = os.path.join(out_dir, "individual")
+
+    for d in (rows_dir, cols_dir, ind_dir):
+        shutil.rmtree(d, ignore_errors=True)
     for d in (out_dir, rows_dir, cols_dir, ind_dir):
         os.makedirs(d, exist_ok=True)
     # 1. Ảnh tổng quát

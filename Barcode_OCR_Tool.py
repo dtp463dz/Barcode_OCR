@@ -273,8 +273,17 @@ class BarcodeOCRTool:
                                          initialvalue=22, minvalue=1, maxvalue=200, parent=self.root)
         if count is None:
             return
+        margin_pct = simpledialog.askinteger(
+            "Setup ROI",
+            "Do nong ROI so voi ma QR (%)\n"
+            "0 = khit sat mep ma QR (de sai neu board xe dich)\n"
+            "8-15 = khuyen nghi (chiu duoc xe dich nhe)",
+            initialvalue=8, minvalue=0, maxvalue=100, parent=self.root)
+        if margin_pct is None:
+            return
 
-        found = self.roi_manager.auto_detect(self.current_img, expected_rows=rows, expected_count=count)
+        found = self.roi_manager.auto_detect(self.current_img, expected_rows=rows,
+                                              expected_count=count, margin_ratio=margin_pct / 100.0)
         self.log(f"Auto-detect: tim thay {len(found)}/{count} ma QR, da sinh {len(found)} ROI.")
         self._refresh_qr_summary()
         self.edit_roi()
@@ -317,7 +326,7 @@ class BarcodeOCRTool:
 
     def _run_scan(self, export=False):
         """Buoc 4: quet tat ca ROI tren anh hien tai; neu export=True thi sinh
-        day du anh tong the / theo hang-cot / rieng le + file JSON/TXT."""
+        day du anh tong the / theo hang-cot / rieng le + file .txt."""
         if self.current_img is None:
             messagebox.showwarning("Warning", "Chua co anh! Ket noi camera hoac Load image from File truoc.")
             return

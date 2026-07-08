@@ -109,7 +109,20 @@ class ROIManager:
             except Exception:
                 decoded = pyzbar.decode(im)
             for d in decoded:
-                x, y, w, h = d.rect
+                # d.rect: bounding box thang truc pyzbar tra ve.
+                # d.polygon: 4 diem goc thuc te cua ma QR - doi khi khit hon d.rect
+                # (mot vai phien ban zbar cong them quiet-zone vao rect).
+                # -> tinh ca 2, lay ban KHIT HON (dien tich nho hon) de ROI sat voi
+                # ma QR that su, khong rong hon can thiet.
+                rx, ry, rw, rh = d.rect
+                if d.polygon:
+                    xs = [p.x for p in d.polygon]
+                    ys = [p.y for p in d.polygon]
+                    px0, py0, px1, py1 = min(xs), min(ys), max(xs), max(ys)
+                    pw, ph = px1 - px0, py1 - py0
+                    if pw * ph < rw * rh:
+                        rx, ry, rw, rh = px0, py0, pw, ph
+                x, y, w, h = rx, ry, rw, rh
                 if scale != 1.0:
                     x, y, w, h = (int(x / scale), int(y / scale),
                                   int(w / scale), int(h / scale))
@@ -367,4 +380,3 @@ class ROIManager:
     def next_free_id(self):
         used = [int(r["id"]) for r in self.rois if str(r["id"]).isdigit()]
         return str((max(used) + 1) if used else 1)
-        
