@@ -1,6 +1,7 @@
 import os
 import re
 from datetime import datetime
+
 import cv2
 import numpy as np
 from pyzbar import pyzbar
@@ -43,35 +44,19 @@ class ROIManager:
         self.meta = {}
 
     # II) AUTO-DETECT: quét toàn bộ ảnh 1 lần, gồm nhóm hàng/ô, ID
-    def auto_detect(self, image, expected_rows=4, expected_count=22, margin_ratio=0.25):    
+    def auto_detect(self, image, expected_rows=4, expected_count=22, margin_ratio=0.08):    
         """
         expected_rows : số hàng ước lượng (mặc định 4)
         expected_count : tổng số mã QR kỳ vọng (chỉ để cảnh báo nếu thiếu).
         margin_ratio : ROI rộng hơn boudingbox QR thực tế bao nhiêu % để scan ổn định hơn khi bản xê dịch
         Trả về: List ROI mới tạo (cũng được lưu vào self.rois)
         """
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
-        denoised = cv2.fastNlMeansDenoising(gray, h=5)
-        try:
-            symbols = [pyzbar.ZBarSymbol.QRCODE]
-            decoded = pyzbar.decode(denoised, symbols=symbols)
-        except Exception:
-            decoded = pyzbar.decode(denoised)
-
-        if not decoded:
+        boxes = self._multi_pass_detect(image)
+        if not boxes:
             return []
 
-        boxes = []
-        for d in decoded:
-            x, y, w, h = d.rect
-            boxes.append({
-                "x": x, "y": y, "w": w, "h": h,
-                "cx": x + w / 2.0, "cy": y + h / 2.0,
-                "sn": d.data.decode("utf-8", errors="replace"),
-            })
-
-        if len(decoded) < expected_count:
-            print(f"[CANH BAO] Chi tim thay {len(decoded)}/{expected_count} ma QR "
+        if len(boxes) < expected_count:
+            print(f"[CANH BAO] Chi tim thay {len(boxes)}/{expected_count} ma QR "
                   f"trong lan auto-detect. Ban co the them ROI con thieu bang tay "
                   f"trong ROI Editor.")
 
@@ -81,8 +66,76 @@ class ROIManager:
                      "image_width": w_img, "image_height": h_img,
                      "expected_count": expected_count}
         return self.rois
-    
-    # xây dựng grid: lưới hàng/ô, đánh ID liên tục theo hàng (trai->phai, trên->dưới)
+
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _multi_pass_detect(image, dedup_ratio=0.5):
+        """
+            - raw / denoise : truong hop binh thuong, it nhieu
+            - CLAHE (tang tuong phan cuc bo) : truong hop anh sang khong deu
+            - Otsu / adaptive threshold : truong hop tuong phan thap
+            - sharpen (lam net) : truong hop anh hoi mo do rung/out-focus
+        Tra ve: list boxes (dict x,y,w,h,cx,cy,sn)
+        """
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
+
+        variants = []
+        variants.append(("raw", gray, 1.0))
+        variants.append(("denoise", cv2.fastNlMeansDenoising(gray, h=5), 1.0))
+
+        clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+        variants.append(("clahe", clahe.apply(gray), 1.0))
+
+        _, otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        variants.append(("otsu", otsu, 1.0))
+
+        adaptive = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                          cv2.THRESH_BINARY, 31, 5)
+        variants.append(("adaptive", adaptive, 1.0))
+
+        blur = cv2.GaussianBlur(gray, (0, 0), 3)
+        sharpened = cv2.addWeighted(gray, 1.5, blur, -0.5, 0)
+        variants.append(("sharpen", sharpened, 1.0))
+
+        # phong to nhe: giup cac ma QR nho / mat do module cao de doc hon
+        upscale = cv2.resize(gray, None, fx=1.6, fy=1.6, interpolation=cv2.INTER_CUBIC)
+        variants.append(("upscale", upscale, 1.6))
+
+        symbols = [pyzbar.ZBarSymbol.QRCODE]
+        all_found = []  # list (x,y,w,h,sn) da quy doi ve toa do anh GOC
+        for name, im, scale in variants:
+            try:
+                decoded = pyzbar.decode(im, symbols=symbols)
+            except Exception:
+                decoded = pyzbar.decode(im)
+            for d in decoded:
+                x, y, w, h = d.rect
+                if scale != 1.0:
+                    x, y, w, h = (int(x / scale), int(y / scale),
+                                  int(w / scale), int(h / scale))
+                all_found.append({
+                    "x": x, "y": y, "w": w, "h": h,
+                    "cx": x + w / 2.0, "cy": y + h / 2.0,
+                    "sn": d.data.decode("utf-8", errors="replace"),
+                    "source": name,
+                })
+
+        # khu trung: gom cac ban ghi co tam gan nhau (< dedup_ratio * chieu
+        # rong) thanh 1, uu tien giu ban ghi co kich thuoc gan trung binh
+        # nhat (cac phien ban threshold/sharpen doi khi lam sai lech bien).
+        unique = []
+        for b in all_found:
+            match = None
+            for u in unique:
+                dist = ((b["cx"] - u["cx"]) ** 2 + (b["cy"] - u["cy"]) ** 2) ** 0.5
+                if dist < max(b["w"], u["w"]) * dedup_ratio:
+                    match = u
+                    break
+            if match is None:
+                unique.append(b)
+        return unique
+
+    # ------------------------------------------------------------------
     def _build_grid(self, boxes, expected_rows, margin_ratio):
         row_labels = self._cluster_1d([b["cy"] for b in boxes], k=expected_rows)
         rows = {}
@@ -152,7 +205,7 @@ class ROIManager:
     # Tính lại row, col cho toàn bộ self.rois dựa trên tọa độ hiện tại (x, y, width, height)
     def _infer_grid(self, expected_rows = 4):
         if not self.rois:
-            return 
+            return
         boxes = [{"cx": r["x"] + r["width"] / 2.0, "cy": r["y"] + r["height"] / 2.0,
                   "w": r["width"], "_ref": r} for r in self.rois]
         row_labels = self._cluster_1d([b["cy"] for b in boxes], k=expected_rows)
@@ -221,11 +274,45 @@ class ROIManager:
                         pass  # de trong / khong phai so -> bo qua, khong crash
                 # STATUS/ROW/COL: co doc duoc cung khong dung, se tu tinh lai
         return blocks
-    
+
+    def load_txt(self, path, expected_rows=4):
+        """Nap moi hoan toan tu file .txt (dung khi bat dau 1 phien lam viec
+        voi config co san, chua co ROI nao trong bo nho)."""
+        blocks = self._parse_txt_blocks(path)
+        self.rois = []
+        for rid, b in blocks.items():
+            if not all(k in b for k in ("x", "y", "width", "height")):
+                print(f"[CANH BAO] Bo qua ID {rid}: thieu x/y/width/height trong file.")
+                continue
+            self.rois.append({
+                "id": rid, "row": 0, "col": 0,
+                "x": b["x"], "y": b["y"], "width": b["width"], "height": b["height"],
+                "sn": b.get("sn", ""),
+                "status": "OK" if b.get("sn") else "UNSCANNED",
+            })
+        self._infer_grid(expected_rows)
+        return self.rois
+
     # IV) Hợp nhất file .txt đã chỉnh sửa
     # Có thể chỉnh sửa X/Y/Width/Height của ROI bị lệch
     # Tra ve: dict {"changed":[...], "added":[...], "missing":[...]}
-    def update_from_txt(self, path, expected_rows = 4):
+    def update_from_txt(self, path, expected_rows=4):
+        """
+        Doc lai file .txt (nguoi dung co the da sua tay X/Y/WIDTH/HEIGHT
+        cua vai ROI bi lech - "NG"). Quy tac BAT BUOC:
+
+            - CHI cap nhat 4 truong x, y, width, height cua NHUNG ROI co
+              ID da ton tai va CO GIA TRI THAY DOI trong file moi.
+            - KHONG dung vao (khong ghi de) bat ky ROI nao khac.
+            - ID moi (chua tung co) -> them ROI moi (bo sung ma bi thieu).
+            - ID cu bi mat khoi file -> GIU NGUYEN ROI do (khong xoa), chi
+              in canh bao, tranh mat du lieu do nguoi dung xoa nham dong.
+            - SN/STATUS/ROW/COL trong file KHONG duoc dung de ghi de (day
+              la du lieu output, khong phai input); row/col duoc tinh lai
+              tu dong sau khi merge xong.
+
+        Tra ve: dict {"changed":[...], "added":[...], "missing":[...]}
+        """
         new_blocks = self._parse_txt_blocks(path)
         existing_by_id = {r["id"]: r for r in self.rois}
         changed, added = [], []

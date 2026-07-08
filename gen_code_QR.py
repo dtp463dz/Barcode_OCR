@@ -11,8 +11,8 @@ def create_paired_qr_grid(data_pairs, output_filename="qr_paired_grid.png"):
 
     # Kích thước cấu hình (pixel)
     qr_size = 180  # Kích thước mỗi mã QR
-    cell_padding = 20  # Khoảng cách giữa các thành phần trong ô
-    grid_gap = 40  # Khoảng cách giữa các ô lớn với nhau
+    cell_padding = 15  # Khoảng cách giữa các thành phần trong ô
+    grid_gap = 20  # Khoảng cách giữa các ô lớn với nhau
 
     # Một ô vuông lớn sẽ chứa: QR_xuôi + khoảng cách + QR_ngược
     cell_width = qr_size + (cell_padding * 2)
@@ -42,7 +42,7 @@ def create_paired_qr_grid(data_pairs, output_filename="qr_paired_grid.png"):
         # Vẽ viền mảnh xung quanh ô vuông lớn để dễ phân biệt (Tùy chọn)
         draw.rectangle(
             [cell_x, cell_y, cell_x + cell_width, cell_y + cell_height],
-            outline="#D3D3D3",
+            outline="#FFFFFF",
             width=2,
         )
 
